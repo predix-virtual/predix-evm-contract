@@ -1,50 +1,49 @@
 # 🧠 PreidxGameContract
 
-**Smart contract for committing and resolving encrypted vote-based prediction games using ETH, USDT, or any ERC20 token.**
+**Smart contract for managing encrypted PvP game participation with staking in ETH, USDT, or any ERC20 token.**
 
-This contract enables secure vote commitments with asset staking and includes full support for encrypted vote submissions, batch withdrawals, and cross-token reward distribution — all owned and controlled by the platform owner.
+`PreidxGameContract` powers secure and scalable prediction games where users join games by submitting encrypted commitments with asset stakes. It enables automated reward distribution, batch withdrawals, and robust tracking — all under secure ownership.
 
 ---
 
 ## 📜 Overview
 
-`PreidxGameContract` is a modular and gas-efficient contract that facilitates encrypted vote commitments with optional staking in ETH, USDT, or any ERC20 token. Designed for on-chain PvP prediction platforms, it supports the following:
+`PreidxGameContract` is a modular and gas-efficient smart contract for on-chain PvP prediction games. It supports encrypted game joins, real-time staking in multiple assets, and owner-controlled payout logic.
 
-- Encrypted vote submission with commitment data
-- Real-time ETH handling and balance tracking
-- Secure vote count and withdrawal protection
-- Batch reward distribution across multiple users
-- Owner-controlled fund withdrawal with reentrancy protection
+Core capabilities include:
+
+- Encrypted game participation with data commitments
+- ETH, USDT, and ERC20 staking support
+- Game player tracking and join validation
+- Batch reward distribution
+- Withdrawal and security protection via ReentrancyGuard
 
 ---
 
 ## ⚙️ Core Features
 
-### ✅ Encrypted Voting with Staking
-- Users submit an encrypted vote along with ETH value or asset stake.
-- Prevents vote front-running and ensures commitment integrity.
+### ✅ Encrypted Game Participation
+- Players submit encrypted data (`commitment`, `quantity`, `asset`) to join a game.
+- Prevents front-running and protects strategy using commitment encryption.
 
-### ✅ Multi-Asset Support
-- ETH
-- USDT (via `IERC20Upgradeable`)
+### ✅ Multi-Asset Staking
+- ETH (native)
+- USDT via `IERC20Upgradeable`
 - Any ERC20 token
 
-### ✅ Vote Tracking and Commitment Storage
-- Stores commitments (`commitment`, `quantity`, `asset`) per voteId and address.
-- Tracks:
-  - If a user has voted
-  - If a user has withdrawn
-  - Total vote count per voteId
+### ✅ Game Participation Tracking
+- Tracks per `gameId` and player:
+  - Has the player joined?
+  - Has the player already withdrawn?
+  - How many players joined this game?
 
-### ✅ Batch Withdrawal Functions
-- Supports bulk reward withdrawals in:
-  - ETH
-  - USDT (Upgradeable)
-  - ERC20
-- Includes:
-  - Failure tracking for partial failures
-  - Vote validation before withdrawal
-  - `hasWithdrawn` flag for double-withdraw prevention
+### ✅ Batch Reward Withdrawals
+- Owner can distribute winnings across multiple players in a single transaction.
+- Supports:
+  - ETH batch payout
+  - USDT batch payout
+  - Generic ERC20 token batch payout
+- Each batch withdrawal tracks failures to avoid reverts on individual issues.
 
 ---
 
@@ -58,7 +57,7 @@ struct TokenAmount {
     uint256 amount;
 }
 
-struct VoteCommitment {
+struct GameCommitment {
     bytes commitment;
     bytes quantity;
     bytes asset;

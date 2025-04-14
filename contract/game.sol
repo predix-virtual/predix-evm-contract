@@ -14,20 +14,20 @@ contract PreidxGameContract is ReentrancyGuard, Ownable {
         uint256 amount;
     }
 
-    struct VoteCommitment {
+    struct GameCommitment {
         bytes commitment;
         bytes quantity;
         bytes asset;
     }
 
-    mapping(uint256 => mapping(address => VoteCommitment)) public voteCommitments;
-    mapping(uint256 => mapping(address => bool)) public hasVoted;
+    mapping(uint256 => mapping(address => GameCommitment)) public gameCommitments;
+    mapping(uint256 => mapping(address => bool)) public hasJoinedGame;
     mapping(uint256 => mapping(address => bool)) public hasWithdrawn;
-    mapping(uint256 => uint256) public voteCounts;
-    mapping(uint256 => bool) public isVoteRegistered;
+    mapping(uint256 => uint256) public gamePlayerCounts;
+    mapping(uint256 => bool) public isGameRegistered;
 
     event Received(address, uint);
-    event ETHSubmitVote(uint256 voteId, bytes quantity, address voterAddress);
+    event ETHGameJoin(uint256 gameId, bytes quantity, address player);
     event USDTBatchWithdraw(address[] accounts, uint256[] amounts, bool[] fails);
     event ETHBatchWithdraw(address[] accounts, uint256[] amounts, bool[] fails);
     event ERC20BatchWithdraw(address token, address[] accounts, uint256[] amounts, bool[] fails);
@@ -42,78 +42,76 @@ contract PreidxGameContract is ReentrancyGuard, Ownable {
         emit Received(msg.sender, msg.value);
     }
 
-    function submitVoteETH(
-        uint256 voteId, 
+    function joinGameETH(
+        uint256 gameId, 
         bytes calldata encryptedData,
         bytes calldata quantity,
         bytes calldata asset
     ) external payable nonReentrant {
         require(msg.value > 0, "ETH value must be greater than 0");
 
-        if (!isVoteRegistered[voteId]) {
-            isVoteRegistered[voteId] = true;
+        if (!isGameRegistered[gameId]) {
+            isGameRegistered[gameId] = true;
         }
 
-        require(!hasVoted[voteId][msg.sender], "Voter has already voted");
+        require(!hasJoinedGame[gameId][msg.sender], "Player has already joined this game");
 
-        voteCommitments[voteId][msg.sender] = VoteCommitment({
-            commitment: encryptedData,  // Use encryptedData here
+        gameCommitments[gameId][msg.sender] = GameCommitment({
+            commitment: encryptedData,
             quantity: quantity,
             asset: asset
         });
 
-        hasVoted[voteId][msg.sender] = true;
-        voteCounts[voteId]++;
+        hasJoinedGame[gameId][msg.sender] = true;
+        gamePlayerCounts[gameId]++;
 
-        emit ETHSubmitVote(voteId, quantity, msg.sender); 
+        emit ETHGameJoin(gameId, quantity, msg.sender);
     }
 
-    function hasVotedForVoteId(address voterAddress, uint256 voteId)
+    function hasJoined(address player, uint256 gameId)
         external
         view
         returns (bool)
     {
-        return hasVoted[voteId][voterAddress];
+        return hasJoinedGame[gameId][player];
     }
 
-    function getEthPaidForVoteId(address voterAddress, uint256 voteId)
+    function getEthPaidForGameId(address player, uint256 gameId)
         external
         view
         returns (bytes memory)
     {
         require(
-            hasVoted[voteId][voterAddress],
-            "User has not voted for this vote ID"
+            hasJoinedGame[gameId][player],
+            "User has not joined this game"
         );
 
-        VoteCommitment memory commitment = voteCommitments[voteId][voterAddress];
+        GameCommitment memory commitment = gameCommitments[gameId][player];
         return commitment.quantity;
     }
 
-    function getVoteCount(uint256 voteId) external view returns (uint256) {
-        return voteCounts[voteId];
+    function getGamePlayerCount(uint256 gameId) external view returns (uint256) {
+        return gamePlayerCounts[gameId];
     }
 
-    function getVoteCommitment(uint256 voteId, address voter) external view returns (bytes memory commitment) {
-        VoteCommitment memory voterCommitment = voteCommitments[voteId][voter];
-        return voterCommitment.commitment;
+    function getGameCommitment(uint256 gameId, address player) external view returns (bytes memory commitment) {
+        GameCommitment memory gameData = gameCommitments[gameId][player];
+        return gameData.commitment;
     }
 
-
+    // Withdraw functions remain unchanged except naming
     function withdrawUSDT(TokenAmount calldata tokenAmount, address recipient) external onlyOwner {
         try IERC20Upgradeable(tokenAmount.token).transfer(recipient, tokenAmount.amount) {
             emit ERC20Withdraw(recipient, tokenAmount.token, tokenAmount.amount);
-        } catch Error(string memory reason) {
-            revert("Failed to withdraw token");
         } catch {
-            revert("Unknown error during token withdrawal");
+            revert("Failed to withdraw token");
         }
     }
 
     function withdrawERC20(TokenAmount calldata tokenAmount, address recipient) external onlyOwner {
         IERC20 tokenContract = IERC20(tokenAmount.token);
         bool succ = tokenContract.transfer(recipient, tokenAmount.amount);
-        require(succ, "token.transfer() makes unknown error.");
+        require(succ, "token.transfer() failed.");
         emit ERC20Withdraw(recipient, tokenAmount.token, tokenAmount.amount);
     }
 
@@ -128,17 +126,16 @@ contract PreidxGameContract is ReentrancyGuard, Ownable {
         address usdtToken,
         address[] memory accounts,
         uint256[] memory amounts,
-        uint256 voteId
+        uint256 gameId
     ) external onlyOwner nonReentrant {
-
         require(accounts.length == amounts.length, "Arrays must be of equal length");
-        require(isVoteRegistered[voteId], "Vote is not registered");
+        require(isGameRegistered[gameId], "Game is not registered");
 
         IERC20Upgradeable usdtContract = IERC20Upgradeable(usdtToken);
 
         bool[] memory fails = new bool[](accounts.length);
         for (uint256 i = 0; i < accounts.length; i++) {
-            if (!hasVoted[voteId][accounts[i]] || hasWithdrawn[voteId][accounts[i]]) {
+            if (!hasJoinedGame[gameId][accounts[i]] || hasWithdrawn[gameId][accounts[i]]) {
                 fails[i] = true;
                 continue;
             }
@@ -148,7 +145,7 @@ contract PreidxGameContract is ReentrancyGuard, Ownable {
                 fails[i] = true;
             } else {
                 try usdtContract.transfer(accounts[i], amount) {
-                    hasWithdrawn[voteId][accounts[i]] = true;
+                    hasWithdrawn[gameId][accounts[i]] = true;
                 } catch {
                     fails[i] = true;
                 }
@@ -158,22 +155,20 @@ contract PreidxGameContract is ReentrancyGuard, Ownable {
         emit USDTBatchWithdraw(accounts, amounts, fails);
     }
 
-     function batchWithdrawERC20(
+    function batchWithdrawERC20(
         address token,
         address[] memory accounts,
         uint256[] memory amounts,
-        uint256 voteId
+        uint256 gameId
     ) external onlyOwner nonReentrant {
-
         require(accounts.length == amounts.length, "Arrays must be of equal length");
-        require(isVoteRegistered[voteId], "Vote is not registered");
+        require(isGameRegistered[gameId], "Game is not registered");
 
         IERC20 tokenContract = IERC20(token);
 
         bool[] memory fails = new bool[](accounts.length);
-        
         for (uint256 i = 0; i < accounts.length; i++) {
-            if (!hasVoted[voteId][accounts[i]] || hasWithdrawn[voteId][accounts[i]]) {
+            if (!hasJoinedGame[gameId][accounts[i]] || hasWithdrawn[gameId][accounts[i]]) {
                 fails[i] = true;
                 continue;
             }
@@ -183,7 +178,7 @@ contract PreidxGameContract is ReentrancyGuard, Ownable {
                 fails[i] = true;
             } else {
                 try tokenContract.transfer(accounts[i], amount) {
-                    hasWithdrawn[voteId][accounts[i]] = true;
+                    hasWithdrawn[gameId][accounts[i]] = true;
                 } catch {
                     fails[i] = true;
                 }
@@ -196,22 +191,21 @@ contract PreidxGameContract is ReentrancyGuard, Ownable {
     function batchWithdrawETH(
         address payable[] memory accounts,
         uint256[] memory amounts,
-        uint256 voteId 
+        uint256 gameId 
     ) external onlyOwner nonReentrant {
-        
         require(accounts.length == amounts.length, "Arrays must be of equal length");
-        require(isVoteRegistered[voteId], "Vote is not registered");
-        
+        require(isGameRegistered[gameId], "Game is not registered");
+
         uint256 totalAmount = 0;
         bool[] memory fails = new bool[](accounts.length);
         address[] memory accountAddresses = new address[](accounts.length);
 
         for (uint256 i = 0; i < accounts.length; i++) {
-            accountAddresses[i] = address(accounts[i]);  // Convert to address
+            accountAddresses[i] = address(accounts[i]);
 
-            if (!hasVoted[voteId][accounts[i]] || hasWithdrawn[voteId][accounts[i]]) {
+            if (!hasJoinedGame[gameId][accounts[i]] || hasWithdrawn[gameId][accounts[i]]) {
                 fails[i] = true;
-                continue; 
+                continue;
             }
 
             if (address(this).balance < amounts[i]) {
@@ -227,10 +221,10 @@ contract PreidxGameContract is ReentrancyGuard, Ownable {
             if (!fails[i]) {
                 (bool success, ) = accounts[i].call{value: amounts[i]}("");
                 require(success, "Withdrawal to account failed");
-                hasWithdrawn[voteId][accounts[i]] = true;
+                hasWithdrawn[gameId][accounts[i]] = true;
             }
         }
-        
+
         emit ETHBatchWithdraw(accountAddresses, amounts, fails); 
     }
 }
