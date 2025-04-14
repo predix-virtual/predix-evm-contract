@@ -47,6 +47,13 @@ Core capabilities include:
 
 ---
 
+### 💰 Predix Contract Ecosystem
+- Support for ERC20 tokens including community coins.
+- Contract: 0x7e42a7D7E5bDBe136091Fa89BbFbae98B891bE1c
+- txHash : https://sepolia.basescan.org/tx/0x81b13d4edb6716a05f68a6667e2fe063e955d0a51c3eff803e2f9cd64b5cc0f6
+
+---
+
 ## 📦 Contract Structure
 
 ### Structs
